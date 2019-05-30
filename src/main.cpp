@@ -1,3 +1,30 @@
+// Copyright (c) 2019, Danilo Peixoto. All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// * Redistributions of source code must retain the above copyright notice, this
+//   list of conditions and the following disclaimer.
+//
+// * Redistributions in binary form must reproduce the above copyright notice,
+//   this list of conditions and the following disclaimer in the documentation
+//   and/or other materials provided with the distribution.
+//
+// * Neither the name of the copyright holder nor the names of its
+//   contributors may be used to endorse or promote products derived from
+//   this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 #include <aurora/Math.h>
 #include <aurora/Utility.h>
 #include <aurora/Vector.h>
@@ -11,7 +38,7 @@
 #include <cstdlib>
 #include <iostream>
 
-using namespace projeto1;
+using namespace aurora;
 
 float uniformRandom1D() {
     return std::rand() / (RAND_MAX + 1.0);
@@ -64,7 +91,7 @@ struct Intersection {
     
     Intersection() {
         hit = false;
-        distance = PROJETO1_INFINITY;
+        distance = AURORA_INFINITY;
         index = -1;
     }
     Intersection(bool hit, float distance, int index) {
@@ -188,8 +215,8 @@ struct Sphere : Shape {
         float theta = std::atan2(shaderGlobals.normal.x, shaderGlobals.normal.z);
         float phi = std::acos(shaderGlobals.normal.y);
         
-        shaderGlobals.uv.x = theta * PROJETO1_INV_PI * 0.5;
-        shaderGlobals.uv.y = phi * PROJETO1_INV_PI;
+        shaderGlobals.uv.x = theta * AURORA_INV_PI * 0.5;
+        shaderGlobals.uv.y = phi * AURORA_INV_PI;
         
         shaderGlobals.tangentU.x = std::cos(theta);
         shaderGlobals.tangentU.y = 0;
@@ -200,7 +227,7 @@ struct Sphere : Shape {
         shaderGlobals.tangentV.z = std::cos(theta) * std::cos(phi);
     }
     virtual float surfaceArea() const {
-        return 4.0 * PROJETO1_PI * radius * radius;
+        return 4.0 * AURORA_PI * radius * radius;
     }
 };
 
