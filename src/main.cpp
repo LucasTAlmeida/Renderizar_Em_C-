@@ -225,6 +225,8 @@ struct Sphere : Shape {
         shaderGlobals.tangentV.x = std::sin(theta) * std::cos(phi);
         shaderGlobals.tangentV.y = -std::sin(phi);
         shaderGlobals.tangentV.z = std::cos(theta) * std::cos(phi);
+        
+        shaderGlobals.viewDirection = -ray.direction;
     }
     virtual float surfaceArea() const {
         return 4.0 * AURORA_PI * radius * radius;
@@ -378,8 +380,17 @@ struct Renderer {
     Color3 trace(const Ray & ray, int depth) const {
         Intersection intersection;
         
-        if (scene->intersects(ray, intersection))
-            return Color3(1.0, 1.0, 1.0);
+        if (scene->intersects(ray, intersection)) {
+            const Shape * shape = scene->shapes[intersection.index];
+            const BSDF * bsdf = shape->bsdf;
+            
+            ShaderGlobals shaderGlobals;
+            shape->calculateShaderGlobals(ray, intersection, shaderGlobals);
+            
+            float cosTheta = shaderGlobals.viewDirection.dot(shaderGlobals.normal);
+            
+            return bsdf->color * cosTheta;
+        }
         
         return Color3();
     }
@@ -416,21 +427,39 @@ struct Renderer {
 };
 
 int main(int argc, char ** argv) {
-    RenderOptions options(500, 250, 1, 4, 1, 1, 2.0, 2.2, 0);
+    RenderOptions options(500, 500, 1, 16, 1, 1, 2.0, 2.2, 0);
     
     Film film(options.width, options.height);
     
-    Camera camera(radians(45.0), film, Matrix4());
-    camera.lookAt(Vector3(0, 0, 5.0), Vector3(0, 0, 0), Vector3(0, 1.0, 0));
+    Camera camera(radians(20.0), film, Matrix4());
+    camera.lookAt(Vector3(0, 0, 35.0), Vector3(0, 0, 0), Vector3(0, 1.0, 0));
     
-    BSDF * bsdf = new BSDF(BSDFType::Diffuse, Color3(1.0, 1.0, 1.0));
-    Shape * shape = new Sphere(Vector3(0, 0, 0), 1.0, bsdf);
+    BSDF * whiteDiffuse = new BSDF(BSDFType::Diffuse, Color3(1.0, 1.0, 1.0));
+    BSDF * redDiffuse = new BSDF(BSDFType::Diffuse, Color3(1.0, 0, 0));
+    BSDF * greenDiffuse = new BSDF(BSDFType::Diffuse, Color3(0, 1.0, 0));
+    BSDF * lightMaterial = new BSDF(BSDFType::Light, Color3(1.0, 1.0, 1.0));
+    
+    Shape * left = new Sphere(Vector3(-1.0e5 - 5.0, 0, 0), 1.0e5, redDiffuse);
+    Shape * right = new Sphere(Vector3(1.0e5 + 5.0, 0, 0), 1.0e5, greenDiffuse);
+    Shape * bottom = new Sphere(Vector3(0, -1.0e5 - 5.0, 0), 1.0e5, whiteDiffuse);
+    Shape * top = new Sphere(Vector3(0, 1.0e5 + 5.0, 0), 1.0e5, whiteDiffuse);
+    Shape * back = new Sphere(Vector3(0, 0, -1.0e5 - 5.0), 1.0e5, whiteDiffuse);
+    Shape * frontSphere = new Sphere(Vector3(2.0, -3.0, 2.0), 2.0, whiteDiffuse);
+    Shape * backSphere = new Sphere(Vector3(-2.0, -3.0, -2.0), 2.0, whiteDiffuse);
+    Shape * light = new Sphere(Vector3(0, 3.0, 0), 0.5, lightMaterial);
     
     std::vector<Shape *> shapes;
-    shapes.push_back(shape);
+    
+    shapes.push_back(left);
+    shapes.push_back(right);
+    shapes.push_back(bottom);
+    shapes.push_back(top);
+    shapes.push_back(back);
+    shapes.push_back(frontSphere);
+    shapes.push_back(backSphere);
+    shapes.push_back(light);
     
     Scene scene(shapes);
-    
     Renderer renderer(&options, &camera, &scene);
     
     Image3 * image = new Image3(options.width, options.height);
@@ -441,9 +470,15 @@ int main(int argc, char ** argv) {
     else
         std::cout << "Failure." << std::endl;
     
-    delete bsdf;
-    delete shape;
+    delete whiteDiffuse;
+    delete redDiffuse;
+    delete greenDiffuse;
+    delete lightMaterial;
+    
     delete image;
+    
+    for (Shape * shape : shapes)
+        delete shape;
     
     return 0;
 }
