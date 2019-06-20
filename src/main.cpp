@@ -35,13 +35,12 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
-#include <cstdlib>
 #include <iostream>
 
 using namespace aurora;
 
 float uniformRandom1D() {
-    return std::rand() / (RAND_MAX + 1.0);
+    return uniformRandom();
 }
 Vector2 uniformRandom2D() {
     return Vector2(uniformRandom1D(), uniformRandom1D());
@@ -162,7 +161,7 @@ struct Shape {
             ShaderGlobals & shaderGlobals) const = 0;
     virtual float surfaceArea() const = 0;
     
-    virtual Vector3 Lightposition();
+    virtual Vector3 lightPosition() const = 0;
 };
 
 struct Sphere : Shape {
@@ -232,6 +231,10 @@ struct Sphere : Shape {
     }
     virtual float surfaceArea() const {
         return 4.0 * AURORA_PI * radius * radius;
+    }
+    
+    virtual Vector3 lightPosition() const {
+        return position;
     }
 };
 
@@ -372,43 +375,39 @@ struct Renderer {
     
     Color3 computeDirectIllumination(
             const BSDF * bsdf, ShaderGlobals & shaderGlobals) const {
-        
         Color3 radiance;
         
-        for(int i = 0; i<scene->shapes.size();i++){
+        for (int i = 0; i < scene->shapes.size(); i++) {
             Shape * lightShape = scene->shapes[i];
-            BSDF* lightBSDF = lightShape->bsdf;
+            BSDF * lightBSDF = lightShape->bsdf;
             
-            if(lightBSDF->type == BSDFType::Light){
+            if (lightBSDF->type == BSDFType::Light) {
                 shaderGlobals.lightDirection = lightShape->lightPosition() - shaderGlobals.point;
-                float inverseSquareDistance = 1.0/ shaderGlobals.lightDirection.dot(shaderGlobals.lightDirection);
                 
-                shaderGlobals.lightDirection *= std::sqrt(inverseSquareDistance);
+                float inverseSquaredDistance = 1.0 / shaderGlobals.lightDirection.dot(shaderGlobals.lightDirection);
+                shaderGlobals.lightDirection *= std::sqrt(inverseSquaredDistance);
                 
-                
-                Ray shadowRay(shaderGlobals.point + shaderGlobals.lightDirection * AURORA_THERESHOLD,
-                    shaderGlobals.lightDirection
-                            );
+                Ray shadowRay(
+                    shaderGlobals.point + shaderGlobals.lightDirection * AURORA_THRESHOLD,
+                    shaderGlobals.lightDirection);
                 
                 Intersection intersection;
                 
-                if(scene->intersects(shadowRay, intersection)&& i == intersection.index){
-                    
+                if (scene->intersects(shadowRay, intersection) && i == intersection.index) {
                     ShaderGlobals lightShaderGlobals;
-                    lightShape->calculateShaderGlobals(shadowRay, intersection,lightShaderGlobals);
+                    lightShape->calculateShaderGlobals(shadowRay, intersection, lightShaderGlobals);
                     
                     shaderGlobals.lightPoint = lightShaderGlobals.point;
                     shaderGlobals.lightNormal = lightShaderGlobals.normal;
                     
-                    float cosine = std::fmax (0,shaderGlobals.normal.dot(shaderGlobals.lightDirection));
+                    float cosine = std::fmax(0, shaderGlobals.normal.dot(shaderGlobals.lightDirection));
                     float lightCosine = std::fmax(0, shaderGlobals.lightNormal.dot(-shaderGlobals.lightDirection));
                     
-                    Color3 lightIntensity = lightBSDF->color * lightCosine * inverseSquareDistance * lightShape->surfaceArea();
-                    
-                    Color3 bsdfColor = bsdff->color * AURORA_INV_PI;
+                    Color3 bsdfColor = bsdf->color * AURORA_INV_PI;
+                    Color3 lightIntensity = lightBSDF->color * lightCosine *
+                        inverseSquaredDistance * lightShape->surfaceArea();
                     
                     radiance += bsdfColor * lightIntensity * cosine;
-                
                 }
             }
         }
@@ -427,15 +426,14 @@ struct Renderer {
             const Shape * shape = scene->shapes[intersection.index];
             const BSDF * bsdf = shape->bsdf;
             
-            ShaderGlobals shaderGlobals;
-            shape->calculateShaderGlobals(ray, intersection, shaderGlobals);
-            
-            if(bsdf->type == BSDFType::Light)
-                return bsf->color;
-             else if (bsdf->type == BSDFType::Diffuse){
-                return computeDIrectIllumination(bsdf, shaderGlobals);
-             }
-           
+            if (bsdf->type == BSDFType::Light)
+                return bsdf->color;
+            else if (bsdf->type == BSDFType::Diffuse) {
+                ShaderGlobals shaderGlobals;
+                shape->calculateShaderGlobals(ray, intersection, shaderGlobals);
+                
+                return computeDirectIllumination(bsdf, shaderGlobals);
+            }
         }
         
         return Color3();
@@ -480,19 +478,21 @@ int main(int argc, char ** argv) {
     Camera camera(radians(20.0), film, Matrix4());
     camera.lookAt(Vector3(0, 0, 35.0), Vector3(0, 0, 0), Vector3(0, 1.0, 0));
     
-    BSDF * whiteDiffuse = new BSDF(BSDFType::Diffuse, Color3(1.0, 0.3, 1.0));
+    BSDF * whiteDiffuse = new BSDF(BSDFType::Diffuse, Color3(1.0, 1.0, 1.0));
     BSDF * redDiffuse = new BSDF(BSDFType::Diffuse, Color3(1.0, 0, 0));
     BSDF * greenDiffuse = new BSDF(BSDFType::Diffuse, Color3(0, 1.0, 0));
-    BSDF * lightMaterial = new BSDF(BSDFType::Light, Color3(1.0, 1.0, 1.0) * 10);
+    BSDF * lightMaterial = new BSDF(BSDFType::Light, Color3(1.0, 1.0, 1.0) * 10.0);
+    BSDF * green2Diffuse = new BSDF(BSDFType::Diffuse, Color3(0, 1.0, 1.0));
+    BSDF * red2Diffuse = new BSDF(BSDFType::Diffuse, Color3(1.0, 0, 1.0));
     
     Shape * left = new Sphere(Vector3(-1.0e5 - 5.0, 0, 0), 1.0e5, redDiffuse);
     Shape * right = new Sphere(Vector3(1.0e5 + 5.0, 0, 0), 1.0e5, greenDiffuse);
     Shape * bottom = new Sphere(Vector3(0, -1.0e5 - 5.0, 0), 1.0e5, whiteDiffuse);
     Shape * top = new Sphere(Vector3(0, 1.0e5 + 5.0, 0), 1.0e5, whiteDiffuse);
     Shape * back = new Sphere(Vector3(0, 0, -1.0e5 - 5.0), 1.0e5, whiteDiffuse);
-    Shape * frontSphere = new Sphere(Vector3(2.0, -3.0, 2.0), 2.0, whiteDiffuse);
-    Shape * backSphere = new Sphere(Vector3(-2.0, -3.0, -2.0), 2.0, whiteDiffuse);
-    Shape * light = new Sphere(Vector3(0, 3.0, 0), 0.5, lightMaterial);
+    Shape * frontSphere = new Sphere(Vector3(2.0, -3.0, 2.0), 2.5, red2Diffuse);
+    Shape * backSphere = new Sphere(Vector3(-2.0, -3.0, -2.0), 1.0, green2Diffuse);
+    Shape * light = new Sphere(Vector3(0, 3.0, 0), 1, lightMaterial);
     
     std::vector<Shape *> shapes;
     
